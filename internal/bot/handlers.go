@@ -184,11 +184,13 @@ func (h *Handler) handleAlias(ctx context.Context, chatID int64, ownerID int64, 
 		h.reply(chatID, "Используй: /alias @username Антон Потупчик", false)
 		return
 	}
+
 	parts := strings.Fields(rest)
 	if len(parts) < 2 {
 		h.reply(chatID, "Используй: /alias @username Антон Потупчик", false)
 		return
 	}
+
 	u := strings.TrimPrefix(parts[0], "@")
 	alias := strings.TrimSpace(strings.Join(parts[1:], " "))
 	if u == "" || alias == "" {
@@ -202,7 +204,7 @@ func (h *Handler) handleAlias(ctx context.Context, chatID int64, ownerID int64, 
 		return
 	}
 
-	// Ensure contact exists too (optional: auto add)
+	// Ensure contact exists
 	_ = h.contacts.AddContact(ctx, ownerID, contactID)
 
 	if err := h.contacts.AddAlias(ctx, ownerID, contactID, alias); err != nil {
@@ -276,4 +278,12 @@ func (h *Handler) RunReminderWorker(ctx context.Context, every time.Duration) {
 			}
 		}
 	}
+}
+
+func (h *Handler) reply(chatID int64, text string, markdown bool) {
+	msg := tgbotapi.NewMessage(chatID, text)
+	if markdown {
+		msg.ParseMode = "Markdown"
+	}
+	_, _ = h.api.Send(msg)
 }
