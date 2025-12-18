@@ -23,19 +23,17 @@ func (h *Handler) handleDebtors(ctx context.Context, chatID int64, ownerID int64
 
 	var b strings.Builder
 	b.WriteString("📥 *Тебе должны:*\n\n")
+
 	for _, d := range rows {
-		status := ""
-		if d.Status == "overdue" {
-			status = " — *просрочено*"
-		}
-		b.WriteString(fmt.Sprintf("#%d %s — %s (до %s)%s\n",
+		b.WriteString(fmt.Sprintf(
+			"#%d %s — %s (до %s)\n",
 			d.ID,
-			displayName(d.DebtorName),
+			displayName(d.Name),
 			formatMoney(d.AmountCents, d.Currency),
 			d.DueDate.Format("02.01.2006"),
-			status,
 		))
 	}
+
 	b.WriteString("\nЗакрыть долг: `/paid <id>`")
 	h.reply(chatID, b.String(), true)
 }
@@ -53,19 +51,17 @@ func (h *Handler) handleMyDebts(ctx context.Context, chatID int64, ownerID int64
 
 	var b strings.Builder
 	b.WriteString("📤 *Ты должен:*\n\n")
+
 	for _, d := range rows {
-		status := ""
-		if d.Status == "overdue" {
-			status = " — *просрочено*"
-		}
-		b.WriteString(fmt.Sprintf("#%d %s — %s (до %s)%s\n",
+		b.WriteString(fmt.Sprintf(
+			"#%d %s — %s (до %s)\n",
 			d.ID,
-			displayName(d.DebtorName),
+			displayName(d.Name),
 			formatMoney(d.AmountCents, d.Currency),
 			d.DueDate.Format("02.01.2006"),
-			status,
 		))
 	}
+
 	b.WriteString("\nЗакрыть долг: `/paid <id>`")
 	h.reply(chatID, b.String(), true)
 }

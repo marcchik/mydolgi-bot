@@ -5,18 +5,6 @@ import (
 	"time"
 )
 
-type DebtRow struct {
-	ID          int64
-	CreditorID  int64
-	DebtorID    int64
-	AmountCents int64
-	Currency    string
-	DueDate     time.Time
-	Status      string
-	ClosedAt    *time.Time
-	DebtorName  string // resolved for lists
-}
-
 type SummaryRow struct {
 	Currency     string
 	YouLentCents int64
@@ -48,7 +36,8 @@ func (r *Debts) ListDebtors(ctx context.Context, ownerID int64, limit int) ([]De
 		 AND c.contact_user_id = d.debtor_id
 		WHERE d.creditor_id = $1
 		  AND d.status = 'active'
-		ORDER BY d.due_date;
+		ORDER BY d.due_date
+		LIMIT $2;
 	`, ownerID, limit)
 	if err != nil {
 		return nil, err
@@ -58,7 +47,13 @@ func (r *Debts) ListDebtors(ctx context.Context, ownerID int64, limit int) ([]De
 	out := make([]DebtRow, 0, 32)
 	for rows.Next() {
 		var d DebtRow
-		if err := rows.Scan(&d.ID, &d.CreditorID, &d.DebtorID, &d.AmountCents, &d.Currency, &d.DueDate, &d.Status, &d.ClosedAt, &d.DebtorName); err != nil {
+		if err := rows.Scan(
+			&d.ID,
+			&d.AmountCents,
+			&d.Currency,
+			&d.DueDate,
+			&d.Name,
+		); err != nil {
 			return nil, err
 		}
 		out = append(out, d)
@@ -70,25 +65,22 @@ func (r *Debts) ListMyDebts(ctx context.Context, ownerID int64, limit int) ([]De
 	if limit <= 0 {
 		limit = 50
 	}
+
 	rows, err := r.pool.Query(ctx, `
-				SELECT
+		SELECT
 			d.id,
 			d.amount_cents,
 			d.currency,
 			d.due_date,
-			u.username,
-			u.first_name,
-			u.last_name
+			COALESCE(u.first_name || ' ' || u.last_name, '@' || u.username)
 		FROM debts d
-		JOIN users u
-		  ON u.id = d.creditor_id
-		JOIN contacts c
-		  ON c.owner_user_id = d.debtor_id
-		 AND c.contact_user_id = d.creditor_id
-		WHERE d.debtor_id = $1
+		JOIN users u ON u.id = d.debtor_id
+		WHERE d.creditor_id = $1
 		  AND d.status = 'active'
-		ORDER BY d.due_date;
+		ORDER BY d.due_date
+		LIMIT $2;
 	`, ownerID, limit)
+
 	if err != nil {
 		return nil, err
 	}
@@ -96,28 +88,66 @@ func (r *Debts) ListMyDebts(ctx context.Context, ownerID int64, limit int) ([]De
 
 	out := make([]DebtRow, 0, 32)
 	for rows.Next() {
-		var d DebtRow
-		if err := rows.Scan(&d.ID, &d.CreditorID, &d.DebtorID, &d.AmountCents, &d.Currency, &d.DueDate, &d.Status, &d.ClosedAt, &d.DebtorName); err != nil {
+		var (
+			id        int64
+			amount    int64
+			currency  string
+			dueDate   time.Time
+			username  *string
+			firstName *string
+			lastName  *string
+		)
+
+		if err := rows.Scan(
+			&id,
+			&amount,
+			&currency,
+			&dueDate,
+			&username,
+			&firstName,
+			&lastName,
+		); err != nil {
 			return nil, err
 		}
-		out = append(out, d)
+
+		name := ""
+		if firstName != nil {
+			name = *firstName
+		}
+		if lastName != nil {
+			name += " " + *lastName
+		}
+		if name == "" && username != nil {
+			name = "@" + *username
+		}
+
+		out = append(out, DebtRow{
+			ID:          id,
+			AmountCents: amount,
+			Currency:    currency,
+			DueDate:     dueDate,
+			Name:        name,
+		})
 	}
+
 	return out, rows.Err()
 }
 
 func (r *Debts) SummaryByCurrency(ctx context.Context, ownerID int64) ([]SummaryRow, error) {
 	rows, err := r.pool.Query(ctx, `
 		WITH lent AS (
-			SELECT currency, COALESCE(SUM(amount_cents),0) AS cents
-			FROM debts
-			WHERE creditor_id = $1 AND d.status = 'active'
-			GROUP BY currency
+			SELECT d.currency, COALESCE(SUM(d.amount_cents),0) AS cents
+			FROM debts d
+			WHERE d.creditor_id = $1
+			  AND d.status = 'active'
+			GROUP BY d.currency
 		),
 		owe AS (
-			SELECT currency, COALESCE(SUM(amount_cents),0) AS cents
-			FROM debts
-			WHERE debtor_id = $1 AND d.status = 'active'
-			GROUP BY currency
+			SELECT d.currency, COALESCE(SUM(d.amount_cents),0) AS cents
+			FROM debts d
+			WHERE d.debtor_id = $1
+			  AND d.status = 'active'
+			GROUP BY d.currency
 		),
 		allc AS (
 			SELECT currency FROM lent
@@ -141,7 +171,12 @@ func (r *Debts) SummaryByCurrency(ctx context.Context, ownerID int64) ([]Summary
 	out := make([]SummaryRow, 0, 8)
 	for rows.Next() {
 		var s SummaryRow
-		if err := rows.Scan(&s.Currency, &s.YouLentCents, &s.YouOweCents, &s.NetCents); err != nil {
+		if err := rows.Scan(
+			&s.Currency,
+			&s.YouLentCents,
+			&s.YouOweCents,
+			&s.NetCents,
+		); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
