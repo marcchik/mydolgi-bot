@@ -84,6 +84,31 @@ func (h *Handler) HandleUpdate(ctx context.Context, upd tgbotapi.Update) {
 		return
 	}
 
+	if strings.HasPrefix(text, "/debtors") {
+		h.handleDebtors(ctx, msg.Chat.ID, ownerID)
+		return
+	}
+
+	if strings.HasPrefix(text, "/mydebts") {
+		h.handleMyDebts(ctx, msg.Chat.ID, ownerID)
+		return
+	}
+
+	if strings.HasPrefix(text, "/debts") {
+		h.handleSummary(ctx, msg.Chat.ID, ownerID)
+		return
+	}
+
+	if strings.HasPrefix(text, "/contacts") {
+		h.handleContacts(ctx, msg.Chat.ID, ownerID)
+		return
+	}
+
+	if strings.HasPrefix(text, "/paid") || strings.HasPrefix(text, "/close") {
+		h.handlePaid(ctx, msg.Chat.ID, ownerID, text)
+		return
+	}
+
 	// Default: try parse as debt record
 	parsed, err := ParseDebtText(text)
 	if err != nil {
@@ -153,31 +178,6 @@ func (h *Handler) handleAdd(ctx context.Context, chatID int64, ownerID int64, te
 	u = strings.TrimPrefix(u, "@")
 	if u == "" {
 		h.reply(chatID, "Используй: /add @username", false)
-		return
-	}
-
-	if strings.HasPrefix(text, "/debtors") {
-		h.handleDebtors(ctx, chatID, ownerID)
-		return
-	}
-
-	if strings.HasPrefix(text, "/mydebts") {
-		h.handleMyDebts(ctx, chatID, ownerID)
-		return
-	}
-
-	if strings.HasPrefix(text, "/debts") {
-		h.handleSummary(ctx, chatID, ownerID)
-		return
-	}
-
-	if strings.HasPrefix(text, "/contacts") {
-		h.handleContacts(ctx, chatID, ownerID)
-		return
-	}
-
-	if strings.HasPrefix(text, "/paid") || strings.HasPrefix(text, "/close") {
-		h.handlePaid(ctx, chatID, ownerID, text)
 		return
 	}
 
