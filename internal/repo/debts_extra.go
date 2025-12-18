@@ -44,8 +44,8 @@ func (r *Debts) ListDebtors(ctx context.Context, ownerID int64, limit int) ([]De
 			LIMIT 1
 		) a ON true
 		WHERE d.creditor_id = $1
-		  AND d.status IN ('open','overdue')
-		ORDER BY (d.status = 'overdue') DESC, d.due_date ASC, d.id DESC
+		  AND d.status = 'active'
+		ORDER BY (d.status = 'active') DESC, d.due_date ASC, d.id DESC
 		LIMIT $2
 	`, ownerID, limit)
 	if err != nil {
@@ -81,8 +81,8 @@ func (r *Debts) ListMyDebts(ctx context.Context, ownerID int64, limit int) ([]De
 			LIMIT 1
 		) a ON true
 		WHERE d.debtor_id = $1
-		  AND d.status IN ('open','overdue')
-		ORDER BY (d.status = 'overdue') DESC, d.due_date ASC, d.id DESC
+		  AND d.status = 'active'
+		ORDER BY (d.status = 'active') DESC, d.due_date ASC, d.id DESC
 		LIMIT $2
 	`, ownerID, limit)
 	if err != nil {
@@ -106,13 +106,13 @@ func (r *Debts) SummaryByCurrency(ctx context.Context, ownerID int64) ([]Summary
 		WITH lent AS (
 			SELECT currency, COALESCE(SUM(amount_cents),0) AS cents
 			FROM debts
-			WHERE creditor_id = $1 AND status IN ('open','overdue')
+			WHERE creditor_id = $1 AND d.status = 'active'
 			GROUP BY currency
 		),
 		owe AS (
 			SELECT currency, COALESCE(SUM(amount_cents),0) AS cents
 			FROM debts
-			WHERE debtor_id = $1 AND status IN ('open','overdue')
+			WHERE debtor_id = $1 AND d.status = 'active'
 			GROUP BY currency
 		),
 		allc AS (
@@ -151,7 +151,7 @@ func (r *Debts) CloseDebt(ctx context.Context, ownerID, debtID int64) (bool, err
 		UPDATE debts
 		SET status = 'closed', closed_at = NOW()
 		WHERE id = $1
-		  AND status IN ('open','overdue')
+		AND d.status = 'active'
 		  AND (creditor_id = $2 OR debtor_id = $2)
 	`, debtID, ownerID)
 	if err != nil {
