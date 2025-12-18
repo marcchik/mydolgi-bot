@@ -32,21 +32,23 @@ func (r *Debts) ListDebtors(ctx context.Context, ownerID int64, limit int) ([]De
 		limit = 50
 	}
 	rows, err := r.pool.Query(ctx, `
-		SELECT d.id, d.creditor_id, d.debtor_id, d.amount_cents, d.currency, d.due_date, d.status, d.closed_at,
-		       COALESCE(NULLIF(TRIM(a.alias), ''), COALESCE(NULLIF(u.username, ''), CONCAT_WS(' ', u.first_name, u.last_name))) AS debtor_name
+				SELECT
+			d.id,
+			d.amount_cents,
+			d.currency,
+			d.due_date,
+			u.username,
+			u.first_name,
+			u.last_name
 		FROM debts d
-		LEFT JOIN users u ON u.id = d.debtor_id
-		LEFT JOIN LATERAL (
-			SELECT alias
-			FROM contact_aliases
-			WHERE owner_id = $1 AND contact_user_id = d.debtor_id
-			ORDER BY LENGTH(alias) DESC
-			LIMIT 1
-		) a ON true
+		JOIN users u
+		  ON u.id = d.debtor_id
+		JOIN contacts c
+		  ON c.owner_user_id = d.creditor_id
+		 AND c.contact_user_id = d.debtor_id
 		WHERE d.creditor_id = $1
 		  AND d.status = 'active'
-		ORDER BY (d.status = 'active') DESC, d.due_date ASC, d.id DESC
-		LIMIT $2
+		ORDER BY d.due_date;
 	`, ownerID, limit)
 	if err != nil {
 		return nil, err
@@ -69,21 +71,23 @@ func (r *Debts) ListMyDebts(ctx context.Context, ownerID int64, limit int) ([]De
 		limit = 50
 	}
 	rows, err := r.pool.Query(ctx, `
-		SELECT d.id, d.creditor_id, d.debtor_id, d.amount_cents, d.currency, d.due_date, d.status, d.closed_at,
-		       COALESCE(NULLIF(TRIM(a.alias), ''), COALESCE(NULLIF(u.username, ''), CONCAT_WS(' ', u.first_name, u.last_name))) AS creditor_name
+				SELECT
+			d.id,
+			d.amount_cents,
+			d.currency,
+			d.due_date,
+			u.username,
+			u.first_name,
+			u.last_name
 		FROM debts d
-		LEFT JOIN users u ON u.id = d.creditor_id
-		LEFT JOIN LATERAL (
-			SELECT alias
-			FROM contact_aliases
-			WHERE owner_id = $1 AND contact_user_id = d.creditor_id
-			ORDER BY LENGTH(alias) DESC
-			LIMIT 1
-		) a ON true
+		JOIN users u
+		  ON u.id = d.creditor_id
+		JOIN contacts c
+		  ON c.owner_user_id = d.debtor_id
+		 AND c.contact_user_id = d.creditor_id
 		WHERE d.debtor_id = $1
 		  AND d.status = 'active'
-		ORDER BY (d.status = 'active') DESC, d.due_date ASC, d.id DESC
-		LIMIT $2
+		ORDER BY d.due_date;
 	`, ownerID, limit)
 	if err != nil {
 		return nil, err
