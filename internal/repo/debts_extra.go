@@ -2,7 +2,6 @@ package repo
 
 import (
 	"context"
-	"time"
 )
 
 type SummaryRow struct {
@@ -68,13 +67,12 @@ func (r *Debts) ListMyDebts(ctx context.Context, ownerID int64, limit int) ([]De
 			d.due_date,
 			COALESCE(u.first_name || ' ' || u.last_name, '@' || u.username)
 		FROM debts d
-		JOIN users u ON u.id = d.debtor_id
-		WHERE d.creditor_id = $1
+		JOIN users u ON u.id = d.creditor_id
+		WHERE d.debtor_id = $1
 		  AND d.status = 'active'
 		ORDER BY d.due_date
 		LIMIT $2;
 	`, ownerID, limit)
-
 	if err != nil {
 		return nil, err
 	}
@@ -82,48 +80,18 @@ func (r *Debts) ListMyDebts(ctx context.Context, ownerID int64, limit int) ([]De
 
 	out := make([]DebtRow, 0, 32)
 	for rows.Next() {
-		var (
-			id        int64
-			amount    int64
-			currency  string
-			dueDate   time.Time
-			username  *string
-			firstName *string
-			lastName  *string
-		)
-
+		var d DebtRow
 		if err := rows.Scan(
-			&id,
-			&amount,
-			&currency,
-			&dueDate,
-			&username,
-			&firstName,
-			&lastName,
+			&d.ID,
+			&d.AmountCents,
+			&d.Currency,
+			&d.DueDate,
+			&d.Name,
 		); err != nil {
 			return nil, err
 		}
-
-		name := ""
-		if firstName != nil {
-			name = *firstName
-		}
-		if lastName != nil {
-			name += " " + *lastName
-		}
-		if name == "" && username != nil {
-			name = "@" + *username
-		}
-
-		out = append(out, DebtRow{
-			ID:          id,
-			AmountCents: amount,
-			Currency:    currency,
-			DueDate:     dueDate,
-			Name:        name,
-		})
+		out = append(out, d)
 	}
-
 	return out, rows.Err()
 }
 
@@ -182,13 +150,15 @@ func (r *Debts) SummaryByCurrency(ctx context.Context, ownerID int64) ([]Summary
 func (r *Debts) CloseDebt(ctx context.Context, ownerID, debtID int64) (bool, error) {
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE debts
-		SET status = 'closed', closed_at = NOW()
+		SET status = 'closed',
+		    closed_at = now(),
+		    updated_at = now()
 		WHERE id = $1
-		AND d.status = 'active'
+		  AND status = 'active'
 		  AND (creditor_id = $2 OR debtor_id = $2)
 	`, debtID, ownerID)
 	if err != nil {
 		return false, err
 	}
-	return tag.RowsAffected() > 0, nil
+	return tag.RowsAffected() == 1, nil
 }
