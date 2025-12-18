@@ -156,6 +156,31 @@ func (h *Handler) handleAdd(ctx context.Context, chatID int64, ownerID int64, te
 		return
 	}
 
+	if strings.HasPrefix(text, "/debtors") {
+		h.handleDebtors(ctx, chatID, ownerID)
+		return
+	}
+
+	if strings.HasPrefix(text, "/mydebts") {
+		h.handleMyDebts(ctx, chatID, ownerID)
+		return
+	}
+
+	if strings.HasPrefix(text, "/debts") {
+		h.handleSummary(ctx, chatID, ownerID)
+		return
+	}
+
+	if strings.HasPrefix(text, "/contacts") {
+		h.handleContacts(ctx, chatID, ownerID)
+		return
+	}
+
+	if strings.HasPrefix(text, "/paid") || strings.HasPrefix(text, "/close") {
+		h.handlePaid(ctx, chatID, ownerID, text)
+		return
+	}
+
 	// В Telegram Bot API нельзя по username получить telegram_id напрямую.
 	// Поэтому "add" делаем через “взаимную регистрацию”: друг должен написать /start боту.
 	// Затем ты добавляешь его по @username, а мы ищем user_id в нашей БД (users.username).
