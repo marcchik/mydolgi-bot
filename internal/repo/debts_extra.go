@@ -20,20 +20,14 @@ func (r *Debts) ListDebtors(ctx context.Context, ownerID int64, limit int) ([]De
 		limit = 50
 	}
 	rows, err := r.pool.Query(ctx, `
-				SELECT
+					SELECT
 			d.id,
 			d.amount_cents,
 			d.currency,
 			d.due_date,
-			u.username,
-			u.first_name,
-			u.last_name
+			COALESCE(u.first_name || ' ' || u.last_name, '@' || u.username)
 		FROM debts d
-		JOIN users u
-		  ON u.id = d.debtor_id
-		JOIN contacts c
-		  ON c.owner_user_id = d.creditor_id
-		 AND c.contact_user_id = d.debtor_id
+		JOIN users u ON u.id = d.debtor_id
 		WHERE d.creditor_id = $1
 		  AND d.status = 'active'
 		ORDER BY d.due_date
