@@ -9,7 +9,7 @@ import (
 )
 
 func (h *Handler) handleDebtors(ctx context.Context, chatID int64, ownerID int64) {
-	rows, err := h.debts.ListDebtors(ctx, ownerID)
+	rows, err := h.debts.ListDebtors(ctx, ownerID, 50)
 	if err != nil {
 		log.Printf("ListDebtors error: %v", err)
 		h.reply(chatID, "❌ Не удалось получить список должников (БД)", false)
