@@ -161,6 +161,7 @@ func (h *Handler) handleAdd(ctx context.Context, chatID int64, ownerID int64, te
 	// Затем ты добавляешь его по @username, а мы ищем user_id в нашей БД (users.username).
 	var contactID int64
 	contactID, err := h.users.FindByUsername(ctx, u)
+
 	if err != nil {
 		h.reply(chatID, "❌ Я не знаю этого пользователя. Попроси его написать мне /start, а потом повтори /add @username", false)
 		return
@@ -195,8 +196,7 @@ func (h *Handler) handleAlias(ctx context.Context, chatID int64, ownerID int64, 
 		return
 	}
 
-	var contactID int64
-	err := h.usersFindByUsername(ctx, u, &contactID)
+	contactID, err := h.users.FindByUsername(ctx, u)
 	if err != nil {
 		h.reply(chatID, "❌ Я не знаю этого пользователя. Пусть он напишет /start боту.", false)
 		return
@@ -211,41 +211,6 @@ func (h *Handler) handleAlias(ctx context.Context, chatID int64, ownerID int64, 
 	}
 
 	h.reply(chatID, fmt.Sprintf("✅ Алиас сохранён: %q → @%s", alias, u), false)
-}
-
-func (h *Handler) usersFindByUsername(ctx context.Context, username string, outID *int64) error {
-	// маленький helper без отдельного репо-метода, чтобы не раздувать
-	var id int64
-	err := h.usersPool().QueryRow(ctx, `SELECT id FROM users WHERE lower(username)=lower($1)`, username).Scan(&id)
-	if err != nil {
-		return err
-	}
-	*outID = id
-	return nil
-}
-
-// hacky accessor (лучше вынести в repo.Users метод)
-func (h *Handler) usersPool() interface {
-	QueryRow(context.Context, string, ...any) RowScanner
-} {
-	type poolIface interface {
-		QueryRow(context.Context, string, ...any) RowScanner
-	}
-	// Users хранит pool неэкспортируемо; чтобы не усложнять — добавим метод на Users, но сейчас:
-	// Упрощение: в реальном репо вынеси в repo.Users FindByUsername.
-	// Здесь сделаем через приватный "unsafe" — но мы не можем достать pool.
-	// Поэтому ниже: проще — добавим метод FindByUsername в repo.Users.
-	panic("add repo.Users.FindByUsername (see README below)")
-}
-
-type RowScanner interface{ Scan(...any) error }
-
-func (h *Handler) reply(chatID int64, text string, markdown bool) {
-	msg := tgbotapi.NewMessage(chatID, text)
-	if markdown {
-		msg.ParseMode = "Markdown"
-	}
-	_, _ = h.api.Send(msg)
 }
 
 func (h *Handler) sendDM(telegramID int64, text string) {
