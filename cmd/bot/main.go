@@ -64,8 +64,18 @@ func main() {
 		case <-ctx.Done():
 			log.Println("shutdown")
 			return
+
 		case upd := <-updates:
-			h.HandleUpdate(ctx, upd)
+			// 👉 INLINE MODE
+			if upd.InlineQuery != nil {
+				go h.HandleInlineQuery(ctx, upd.InlineQuery)
+				continue
+			}
+
+			// 👉 Обычные сообщения
+			if upd.Message != nil {
+				go h.HandleUpdate(ctx, upd)
+			}
 		}
 	}
 }

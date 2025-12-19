@@ -45,3 +45,12 @@ func (r *Users) FindByUsername(ctx context.Context, username string) (int64, err
 	).Scan(&id)
 	return id, err
 }
+
+func (r *Users) GetUserIDByTelegramID(ctx context.Context, telegramID int64) (int64, error) {
+	var id int64
+	err := r.pool.QueryRow(ctx,
+		`SELECT id FROM users WHERE telegram_id = $1`,
+		telegramID,
+	).Scan(&id)
+	return id, err
+}
