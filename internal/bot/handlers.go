@@ -100,7 +100,7 @@ func (h *Handler) HandleUpdate(ctx context.Context, upd tgbotapi.Update) {
 	}
 
 	if strings.HasPrefix(text, "/contacts") {
-		h.handleContacts(ctx, msg.Chat.ID, ownerID)
+		h.handleContactsInline(ctx, msg.Chat.ID, ownerID)
 		return
 	}
 
@@ -311,4 +311,111 @@ func (h *Handler) reply(chatID int64, text string, markdown bool) {
 		msg.ParseMode = "Markdown"
 	}
 	_, _ = h.api.Send(msg)
+}
+
+func (h *Handler) handleContactsInline(ctx context.Context, chatID int64, ownerID int64) {
+	contacts, err := h.contacts.ListContactsWithAliases(ctx, ownerID, 100)
+	if err != nil {
+		h.reply(chatID, "❌ Не удалось получить контакты (БД)", false)
+		return
+	}
+
+	if len(contacts) == 0 {
+		h.reply(chatID, "👥 Контактов пока нет.\nДобавь: /add @username", false)
+		return
+	}
+
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	for _, c := range contacts {
+		title := c.Username
+		if title == "" {
+			title = strings.TrimSpace(c.FirstName + " " + c.LastName)
+		}
+		if title == "" {
+			title = fmt.Sprintf("user_id=%d", c.UserID)
+		}
+
+		btn := tgbotapi.NewInlineKeyboardButtonData(
+			"⚙️ "+title,
+			fmt.Sprintf("contact:%d", c.UserID),
+		)
+		rows = append(rows, []tgbotapi.InlineKeyboardButton{btn})
+	}
+
+	msg := tgbotapi.NewMessage(chatID, "👥 *Твои контакты:*")
+	msg.ParseMode = "Markdown"
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
+
+	h.api.Send(msg)
+}
+func (h *Handler) HandleCallback(ctx context.Context, q *tgbotapi.CallbackQuery) {
+	data := q.Data
+	chatID := q.Message.Chat.ID
+
+	// обязательно отвечать
+	defer h.api.Request(tgbotapi.NewCallback(q.ID, ""))
+
+	parts := strings.Split(data, ":")
+	if len(parts) < 2 {
+		return
+	}
+
+	switch parts[0] {
+
+	case "contact":
+		contactID, _ := strconv.ParseInt(parts[1], 10, 64)
+		h.showContactMenu(ctx, q, contactID)
+
+	case "contact_delete":
+		contactID, _ := strconv.ParseInt(parts[1], 10, 64)
+		h.deleteContact(ctx, q, contactID)
+
+	case "back_contacts":
+		h.editContactsMenu(ctx, q)
+	}
+}
+func (h *Handler) showContactMenu(ctx context.Context, q *tgbotapi.CallbackQuery, contactID int64) {
+	text := "Что сделать с контактом?"
+
+	kb := tgbotapi.NewInlineKeyboardMarkup(
+		[]tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData("🗑 Удалить", fmt.Sprintf("contact_delete:%d", contactID)),
+		},
+		[]tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ Назад", "back_contacts"),
+		},
+	)
+
+	edit := tgbotapi.NewEditMessageText(
+		q.Message.Chat.ID,
+		q.Message.MessageID,
+		text,
+	)
+	edit.ReplyMarkup = &kb
+
+	h.api.Send(edit)
+}
+func (h *Handler) deleteContact(ctx context.Context, q *tgbotapi.CallbackQuery, contactID int64) {
+	// узнаём owner
+	ownerID, err := h.users.GetUserIDByTelegramID(ctx, q.From.ID)
+	if err != nil {
+		return
+	}
+
+	err = h.contacts.DeleteContact(ctx, ownerID, contactID)
+	if err != nil {
+		h.api.Send(tgbotapi.NewEditMessageText(
+			q.Message.Chat.ID,
+			q.Message.MessageID,
+			"❌ Не удалось удалить контакт",
+		))
+		return
+	}
+
+	h.api.Send(tgbotapi.NewEditMessageText(
+		q.Message.Chat.ID,
+		q.Message.MessageID,
+		"✅ Контакт удалён",
+	))
 }

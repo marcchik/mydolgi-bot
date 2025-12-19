@@ -66,6 +66,10 @@ func main() {
 			return
 
 		case upd := <-updates:
+			if upd.CallbackQuery != nil {
+				h.HandleCallback(ctx, upd.CallbackQuery)
+				continue
+			}
 			// 👉 INLINE MODE
 			if upd.InlineQuery != nil {
 				go h.HandleInlineQuery(ctx, upd.InlineQuery)

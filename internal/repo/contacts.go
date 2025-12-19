@@ -8,6 +8,7 @@ import (
 )
 
 type Contacts struct{ pool *pgxpool.Pool }
+
 func NewContacts(p *pgxpool.Pool) *Contacts { return &Contacts{pool: p} }
 
 func (r *Contacts) AddContact(ctx context.Context, ownerID, contactID int64) error {
@@ -42,14 +43,18 @@ func (r *Contacts) FindContactByConfirmingName(ctx context.Context, ownerID int6
 		WHERE ca.owner_user_id=$1 AND ca.alias=$2
 		LIMIT 5
 	`, ownerID, needle)
-	if err != nil { return 0, nil, err }
+	if err != nil {
+		return 0, nil, err
+	}
 	defer rows.Close()
 
 	var list []ContactCandidate
 	for rows.Next() {
 		var cid int64
 		var un, fn, ln string
-		if e := rows.Scan(&cid, &un, &fn, &ln); e != nil { return 0, nil, e }
+		if e := rows.Scan(&cid, &un, &fn, &ln); e != nil {
+			return 0, nil, e
+		}
 		list = append(list, ContactCandidate{UserID: cid, Username: un, FirstName: fn, LastName: ln})
 	}
 	if len(list) == 1 {
@@ -70,14 +75,18 @@ func (r *Contacts) FindContactByConfirmingName(ctx context.Context, ownerID int6
 		WHERE ca.owner_user_id=$1 AND ca.alias ILIKE '%' || $2 || '%'
 		LIMIT 5
 	`, ownerID, needle)
-	if err != nil { return 0, nil, err }
+	if err != nil {
+		return 0, nil, err
+	}
 	defer rows2.Close()
 
 	list = nil
 	for rows2.Next() {
 		var cid int64
 		var un, fn, ln string
-		if e := rows2.Scan(&cid, &un, &fn, &ln); e != nil { return 0, nil, e }
+		if e := rows2.Scan(&cid, &un, &fn, &ln); e != nil {
+			return 0, nil, e
+		}
 		list = append(list, ContactCandidate{UserID: cid, Username: un, FirstName: fn, LastName: ln})
 	}
 	if len(list) == 1 {
@@ -97,4 +106,11 @@ func normalize(s string) string {
 	s = strings.TrimSpace(strings.ToLower(s))
 	s = strings.Join(strings.Fields(s), " ")
 	return s
+}
+func (r *Contacts) DeleteContact(ctx context.Context, ownerID, contactID int64) error {
+	_, err := r.pool.Exec(ctx, `
+		DELETE FROM contacts
+		WHERE owner_user_id = $1 AND contact_user_id = $2
+	`, ownerID, contactID)
+	return err
 }
