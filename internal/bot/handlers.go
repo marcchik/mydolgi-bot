@@ -30,12 +30,16 @@ func NewHandler(api *tgbotapi.BotAPI, cfg config.Config, u *repo.Users, c *repo.
 }
 
 func (h *Handler) HandleUpdate(ctx context.Context, upd tgbotapi.Update) {
+	if upd.CallbackQuery != nil {
+		h.HandleCallback(ctx, upd.CallbackQuery)
+		return
+	}
+
 	if upd.Message == nil {
 		return
 	}
 
 	msg := upd.Message
-
 	// работаем только в личке
 	if !msg.Chat.IsPrivate() {
 		// Можно отвечать подсказкой, но лучше молчать/минимум.
@@ -352,10 +356,15 @@ func (h *Handler) handleContactsInline(ctx context.Context, chatID int64, ownerI
 }
 func (h *Handler) HandleCallback(ctx context.Context, q *tgbotapi.CallbackQuery) {
 	data := q.Data
-	// chatID := q.Message.Chat.ID
 
-	// обязательно отвечать
+	// обязательно отвечаем Telegram
 	defer h.api.Request(tgbotapi.NewCallback(q.ID, ""))
+
+	// 🔹 КНОПКИ БЕЗ :
+	if data == "back_contacts" {
+		h.editContactsMenu(ctx, q)
+		return
+	}
 
 	parts := strings.Split(data, ":")
 	if len(parts) < 2 {
@@ -372,21 +381,16 @@ func (h *Handler) HandleCallback(ctx context.Context, q *tgbotapi.CallbackQuery)
 		contactID, _ := strconv.ParseInt(parts[1], 10, 64)
 		h.deleteContact(ctx, q, contactID)
 
-	case "back_contacts":
-		h.editContactsMenu(ctx, q)
-		return
-
 	case "contact_aliases":
 		contactID, _ := strconv.ParseInt(parts[1], 10, 64)
 		h.showContactAliases(ctx, q, contactID)
-		return
 
 	case "alias_delete":
 		aliasID, _ := strconv.ParseInt(parts[1], 10, 64)
 		h.deleteAlias(ctx, q, aliasID)
-		return
 	}
 }
+
 func (h *Handler) showContactMenu(ctx context.Context, q *tgbotapi.CallbackQuery, contactID int64) {
 	text := "Что сделать с контактом?"
 
