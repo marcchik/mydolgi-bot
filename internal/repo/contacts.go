@@ -114,3 +114,39 @@ func (r *Contacts) DeleteContact(ctx context.Context, ownerID, contactID int64) 
 	`, ownerID, contactID)
 	return err
 }
+
+type AliasRow struct {
+	ID    int64
+	Value string
+}
+
+func (r *Contacts) ListAliases(ctx context.Context, ownerID, contactID int64) ([]AliasRow, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, alias
+		FROM contact_aliases
+		WHERE owner_id = $1 AND contact_user_id = $2
+		ORDER BY LENGTH(alias) DESC
+	`, ownerID, contactID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []AliasRow
+	for rows.Next() {
+		var a AliasRow
+		if err := rows.Scan(&a.ID, &a.Value); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+func (r *Contacts) DeleteAliasByID(ctx context.Context, ownerID, aliasID int64) error {
+	_, err := r.pool.Exec(ctx, `
+		DELETE FROM contact_aliases
+		WHERE id = $1 AND owner_id = $2
+	`, aliasID, ownerID)
+	return err
+}

@@ -374,12 +374,26 @@ func (h *Handler) HandleCallback(ctx context.Context, q *tgbotapi.CallbackQuery)
 
 	case "back_contacts":
 		h.editContactsMenu(ctx, q)
+		return
+
+	case "contact_aliases":
+		contactID, _ := strconv.ParseInt(parts[1], 10, 64)
+		h.showContactAliases(ctx, q, contactID)
+		return
+
+	case "alias_delete":
+		aliasID, _ := strconv.ParseInt(parts[1], 10, 64)
+		h.deleteAlias(ctx, q, aliasID)
+		return
 	}
 }
 func (h *Handler) showContactMenu(ctx context.Context, q *tgbotapi.CallbackQuery, contactID int64) {
 	text := "Что сделать с контактом?"
 
 	kb := tgbotapi.NewInlineKeyboardMarkup(
+		[]tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData("📛 Алиасы", fmt.Sprintf("contact_aliases:%d", contactID)),
+		},
 		[]tgbotapi.InlineKeyboardButton{
 			tgbotapi.NewInlineKeyboardButtonData("🗑 Удалить", fmt.Sprintf("contact_delete:%d", contactID)),
 		},
