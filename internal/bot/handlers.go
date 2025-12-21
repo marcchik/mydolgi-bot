@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -351,7 +352,7 @@ func (h *Handler) handleContactsInline(ctx context.Context, chatID int64, ownerI
 }
 func (h *Handler) HandleCallback(ctx context.Context, q *tgbotapi.CallbackQuery) {
 	data := q.Data
-	chatID := q.Message.Chat.ID
+	// chatID := q.Message.Chat.ID
 
 	// обязательно отвечать
 	defer h.api.Request(tgbotapi.NewCallback(q.ID, ""))
